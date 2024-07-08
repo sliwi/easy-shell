@@ -12,11 +12,10 @@ import (
 
 //maping unix commands to windows commands
 var CommandMap = map[string]string{
-	"ls":   "dir",
-	"cp":   "copy",
-	"rm":   "del",
-	"cat":  "type",
-	"echo": "echo",
+	"ls":  "dir",
+	"cp":  "copy",
+	"rm":  "del",
+	"cat": "type",
 }
 
 func main() {
@@ -34,7 +33,13 @@ func main() {
 		curTime := currentTime.Format("2006-01-02 15:04:05")
 
 		//display shell
-		fmt.Printf("%s[%s]> ", currentDir, curTime)
+		branch, bErr := getCurrentGitBranch()
+
+		if bErr != nil {
+			fmt.Printf("%s[%s]> ", currentDir, curTime)
+		} else {
+			fmt.Printf("%s (%s) [%s]> ", currentDir, branch, curTime)
+		}
 
 		//read inputs
 		input, err := reader.ReadString('\n')
@@ -71,4 +76,44 @@ func executeCommand(input string) error {
 	cmd.Stdout = os.Stdout
 
 	return cmd.Run()
+}
+
+func findGitRepo() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("error getting current directory: %v", err)
+	}
+
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return dir, nil
+		}
+
+		parentDir := filepath.Dir(dir)
+		if parentDir == dir {
+			break // Reached the root directory
+		}
+		dir = parentDir
+	}
+
+	return "", fmt.Errorf("no git repository found")
+}
+
+func getCurrentGitBranch() (string, error) {
+
+	repoDir, err := findGitRepo()
+
+	if err != nil {
+		return "", err
+	}
+	cmd := exec.Command("git", "-C", repoDir, "rev-parse", "--abbrev-ref", "HEAD")
+
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("error running git command: %v", err)
+	}
+
+	branch := strings.TrimSpace(string(output))
+
+	return branch, nil
 }
